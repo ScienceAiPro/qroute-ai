@@ -3,17 +3,17 @@ import folium
 from streamlit_folium import st_folium
 import math
 
-st.set_page_config(page_title="GCC AI Logistics PRO MAX", layout="wide")
+st.set_page_config(page_title="GCC AI Logistics System", layout="wide")
 
-st.title("🌍 GCC AI Logistics PRO MAX System")
+st.title("🌍 GCC AI Logistics AI System (Qatar + UAE + Saudi)")
 
-st.markdown("Real routing system for Qatar 🇶🇦 + UAE 🇦🇪 + Saudi 🇸🇦")
+st.markdown("Interactive map + real distance + metro pricing + smart routing")
 
 # -----------------------------
-# 🌍 FULL REGIONAL MAP DATA
+# 🌍 FULL REGIONAL DATA
 # -----------------------------
 locations = {
-    # 🇶🇦 QATAR MAIN
+    # 🇶🇦 QATAR
     "Doha": (25.2854, 51.5310),
     "Al Wakrah": (25.1659, 51.5970),
     "Al Khor": (25.6804, 51.4966),
@@ -23,22 +23,19 @@ locations = {
     "Dukhan": (25.4242, 50.7827),
     "Hamad Airport": (25.2731, 51.6081),
     "The Pearl": (25.3694, 51.5486),
-    "Industrial Area Doha": (25.1390, 51.5370),
+    "Industrial Area": (25.1390, 51.5370),
 
-    # 🚇 DOHA METRO (REAL MAJOR STATIONS)
+    # 🚇 DOHA METRO
     "Msheireb Metro": (25.2855, 51.5330),
     "DECC Metro": (25.3269, 51.5310),
     "West Bay Metro": (25.3239, 51.5273),
-    "Education City Metro": (25.3139, 51.4382),
     "Qatar University Metro": (25.3743, 51.4876),
-    "Al Wakrah Metro": (25.1768, 51.5820),
-    "Souq Waqif Metro": (25.2860, 51.5336),
+    "Education City Metro": (25.3139, 51.4382),
 
     # 🇦🇪 UAE
     "Dubai": (25.2048, 55.2708),
     "Abu Dhabi": (24.4539, 54.3773),
     "Sharjah": (25.3463, 55.4209),
-    "Al Ain": (24.1302, 55.8023),
 
     # 🇸🇦 SAUDI ARABIA
     "Riyadh": (24.7136, 46.6753),
@@ -48,9 +45,9 @@ locations = {
 }
 
 # -----------------------------
-# REAL DISTANCE (Haversine)
+# REAL DISTANCE (HAVERSINE)
 # -----------------------------
-def haversine(a, b):
+def distance(a, b):
     R = 6371
     lat1, lon1 = a
     lat2, lon2 = b
@@ -64,12 +61,12 @@ def haversine(a, b):
     return R * c
 
 # -----------------------------
-# METRO PRICE (REALISTIC QATAR RANGE)
+# METRO PRICE (REALISTIC QATAR STYLE)
 # -----------------------------
 def metro_price(dist):
-    if dist < 10:
+    if dist <= 10:
         return 2
-    elif dist < 25:
+    elif dist <= 25:
         return 4
     else:
         return 6
@@ -90,66 +87,88 @@ def travel_time(dist, mode):
     return dist / speed
 
 # -----------------------------
-# UI
+# UI (INTERACTIVE FEEL)
 # -----------------------------
-col1, col2, col3 = st.columns(3)
+st.sidebar.header("🧭 Smart Controls")
 
-with col1:
-    start = st.selectbox("Start Location", list(locations.keys()))
+start = st.sidebar.selectbox("Start Location", list(locations.keys()))
+end = st.sidebar.selectbox("End Location", list(locations.keys()))
 
-with col2:
-    end = st.selectbox("End Location", list(locations.keys()))
+mode = st.sidebar.selectbox(
+    "Transport Mode",
+    ["🤖 Auto AI", "🚗 Car", "🚇 Metro", "✈️ Air"]
+)
 
-with col3:
-    mode = st.selectbox("Transport Mode", ["🚗 Car", "🚇 Metro", "✈️ Air"])
+run = st.button("🚀 Generate Smart Route")
 
 # -----------------------------
-# IMPORTANT FIX:
-# ❌ NO session_state map (THIS FIXES DISAPPEARING ISSUE)
+# MAP (NO SESSION STATE = NO BUGS)
 # -----------------------------
-m = folium.Map(location=[25.3, 51.3], zoom_start=6)
+m = folium.Map(location=[25.2, 51.3], zoom_start=6)
 
-# Add all markers every run (correct way)
+# Add markers
 for name, coord in locations.items():
     folium.Marker(coord, tooltip=name).add_to(m)
 
 # -----------------------------
-# RUN
+# MAIN ENGINE
 # -----------------------------
-if st.button("🚀 Calculate Route"):
+if run:
 
     a = locations[start]
     b = locations[end]
 
-    dist = haversine(a, b)
+    dist = distance(a, b)
+
+    # AI MODE SELECT
+    if mode == "🤖 Auto AI":
+        if dist < 8:
+            mode = "🚇 Metro"
+        elif dist < 80:
+            mode = "🚗 Car"
+        else:
+            mode = "✈️ Air"
+
     time = travel_time(dist, mode)
+    price = metro_price(dist) if mode == "🚇 Metro" else 0
 
-    price = 0
+    # route line
+    folium.PolyLine([a, b], color="blue", weight=5).add_to(m)
+
+    # show map
+    st_folium(m, height=700, width=1100)
+
+    # -----------------------------
+    # CALCULATIONS PANEL (VISIBLE ALWAYS)
+    # -----------------------------
+    st.subheader("📊 AI LOGISTICS CALCULATION PANEL")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Distance (km)", f"{dist:.2f}")
+
+    with col2:
+        st.metric("Mode", mode)
+
+    with col3:
+        st.metric("Time (hrs)", f"{time:.2f}")
+
+    st.write("### 💰 Cost System")
     if mode == "🚇 Metro":
-        price = metro_price(dist)
+        st.success(f"Metro Ticket Price: {price} QAR")
+    elif mode == "🚗 Car":
+        st.info("Fuel cost estimated: 10–25 QAR (simulation)")
+    else:
+        st.info("Air cost: High (simulation)")
 
-    folium.PolyLine([a, b], color="blue", weight=4).add_to(m)
+    st.write("### 🌍 AI Insight")
 
-    st_folium(m, height=700, width=1000)
+    if dist > 500:
+        st.warning("Very long distance → Air recommended ✈️")
 
-    st.subheader("📊 AI ROUTE REPORT")
-
-    st.write(f"📍 From: {start}")
-    st.write(f"📍 To: {end}")
-    st.write(f"📏 Distance: {dist:.2f} km")
-    st.write(f"⏱ Travel Time: {time:.2f} hours")
-    st.write(f"🚇 Metro Price: {price} QAR" if mode == "🚇 Metro" else "No Metro cost")
-
-    # Smart logic
-    if dist > 500 and mode == "🚗 Car":
-        st.warning("Long distance — Air travel recommended ✈️")
-
-    if mode == "🚇 Metro" and dist > 40:
+    if mode == "🚇 Metro" and dist > 30:
         st.warning("Metro not efficient for long distance")
 
-st.caption("GCC AI Logistics System PRO MAX 🚀")
-st.write(f"🚇 Metro Cost: {cost} QAR" if mode == "🚇 Metro" else "🚗 No ticket cost")
-
-    st.success("System using REAL Earth-distance formula 🌍")
-
-st.caption("Qatar Logistics AI PRO System")
+else:
+    st_folium(m, height=700, width=1100)
