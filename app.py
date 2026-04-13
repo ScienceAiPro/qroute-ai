@@ -1,70 +1,74 @@
 import streamlit as st
-import networkx as nx
-import random
+import folium
+from streamlit_folium import st_folium
+import math
 
-st.set_page_config(page_title="QROUTE AI", layout="wide")
+st.title("🌍 GCC AI Logistics System (Interactive Map)")
 
-st.title("🚀 QROUTE AI Logistics System")
-st.subheader("Qatar Smart Transport Optimizer (Land • Air • Sea)")
+# -------------------------
+# CITY DATA
+# -------------------------
+cities = {
+    "Doha (Qatar)": (25.2854, 51.5310),
+    "Dubai (UAE)": (25.2048, 55.2708),
+    "Abu Dhabi (UAE)": (24.4539, 54.3773),
+    "Riyadh (Saudi Arabia)": (24.7136, 46.6753),
+    "Jeddah (Saudi Arabia)": (21.4858, 39.1925),
+}
 
-# Create simple simulated graph (demo AI network)
-G = nx.Graph()
+# -------------------------
+# DISTANCE (KM approx)
+# -------------------------
+def distance(a, b):
+    return math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2) * 111
 
-nodes = ["Doha", "Al Khor", "Al Wakrah", "Ras Laffan", "Hamad Port", "HIA Airport"]
+# -------------------------
+# TRAVEL TIME
+# -------------------------
+def travel_time(dist, mode):
+    if mode == "🚗 Land":
+        return dist / 90
+    elif mode == "✈️ Air":
+        return dist / 850
+    elif mode == "🚢 Sea":
+        return dist / 45
 
-for n in nodes:
-    G.add_node(n)
+# -------------------------
+# UI
+# -------------------------
+start = st.selectbox("Start City", list(cities.keys()))
+end = st.selectbox("End City", list(cities.keys()))
+mode = st.selectbox("Transport Mode", ["🚗 Land", "✈️ Air", "🚢 Sea"])
 
-edges = [
-    ("Doha", "Al Khor"),
-    ("Doha", "Al Wakrah"),
-    ("Doha", "Hamad Port"),
-    ("Doha", "HIA Airport"),
-    ("Al Khor", "Ras Laffan"),
-    ("Al Wakrah", "Hamad Port"),
-]
+# -------------------------
+# MAP BASE
+# -------------------------
+m = folium.Map(location=[24.8, 53], zoom_start=5)
 
-for e in edges:
-    G.add_edge(e[0], e[1], weight=random.randint(10, 60))
+# Add markers
+for city, coord in cities.items():
+    folium.Marker(coord, tooltip=city).add_to(m)
 
-st.sidebar.header("📍 Route Selector")
+# -------------------------
+# ROUTE
+# -------------------------
+if st.button("Generate Route"):
+    start_coord = cities[start]
+    end_coord = cities[end]
 
-start = st.sidebar.selectbox("Start Location", nodes)
-end = st.sidebar.selectbox("End Location", nodes)
+    dist = distance(start_coord, end_coord)
+    time = travel_time(dist, mode)
 
-transport = st.sidebar.radio("Transport Mode", ["🚗 Land", "✈️ Air", "🚢 Sea"])
+    # Draw line
+    folium.PolyLine([start_coord, end_coord], color="blue", weight=4).add_to(m)
 
-if st.sidebar.button("Find Best AI Route"):
+    st_folium(m, height=600, width=700)
 
-    try:
-        path = nx.shortest_path(G, start, end, weight="weight")
-        distance = nx.shortest_path_length(G, start, end, weight="weight")
+    st.success(f"📏 Distance: {dist:.1f} km")
+    st.success(f"⏱️ Time: {time:.2f} hours")
 
-        # AI simulation factors
-        traffic = random.randint(1, 30)
-        weather_delay = random.randint(0, 20)
-
-        if transport == "✈️ Air":
-            speed_factor = 0.6
-        elif transport == "🚢 Sea":
-            speed_factor = 1.5
-        else:
-            speed_factor = 1.0
-
-        time = int((distance * speed_factor) + traffic + weather_delay)
-
-        st.success("AI Route Found 🚀")
-
-        st.write("### 🧭 Best Route:")
-        st.write(" → ".join(path))
-
-        st.write("### 📊 AI Analysis")
-        st.write(f"Distance Score: {distance}")
-        st.write(f"Traffic Delay: {traffic} min")
-        st.write(f"Weather Impact: {weather_delay} min")
-        st.write(f"Estimated Time: {time} minutes")
-
-        st.info(f"Transport Mode: {transport}")
-
-    except:
-        st.error("No route found between selected locations")
+    # SMART RULES
+    if mode == "🚢 Sea" and ("Riyadh" in start or "Riyadh" in end):
+        st.warning("Sea route not valid for inland cities!")
+    if mode == "✈️ Air" and dist < 300:
+        st.warning("Air travel not needed for short distances!")
