@@ -148,7 +148,7 @@ if st.button("🚀 Calculate Route"):
         st.warning("Metro not efficient for long distance")
 
 st.caption("GCC AI Logistics System PRO MAX 🚀")
-    st.write(f"🚇 Metro Cost: {cost} QAR" if mode == "🚇 Metro" else "🚗 No ticket cost")
+st.write(f"🚇 Metro Cost: {cost} QAR" if mode == "🚇 Metro" else "🚗 No ticket cost")
 
     st.success("System using REAL Earth-distance formula 🌍")
 
