@@ -1,7 +1,5 @@
-import streamlit as st
-
-st.set_page_config(page_title="AI Logistics Map", layout="wide")
-
-st.title("🌍 Clean Start App")
-
-st.write("If you see this, your app is working correctly.")
+base_map = folium.Map(
+    location=[25.3, 51.3],
+    zoom_start=6,
+    tiles="CartoDB dark_matter"
+)
