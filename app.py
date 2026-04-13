@@ -2,44 +2,40 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 import math
-import json
 from datetime import datetime
 
-# =========================================================
-# PAGE CONFIG
-# =========================================================
-st.set_page_config(
-    page_title="GCC AI Logistics PRO MAX",
-    layout="wide"
-)
+# =====================================================
+# PAGE SETUP
+# =====================================================
+st.set_page_config(page_title="GCC AI Logistics PRO", layout="wide")
 
-st.title("🌍 GCC AI Logistics PRO MAX SYSTEM")
-st.markdown("Real routing engine + AI decision system + interactive map")
+st.title("🌍 GCC AI Logistics PRO SYSTEM (STABLE EDITION)")
+st.markdown("Click map → select points → generate AI route")
 
-# =========================================================
-# SESSION STATE INIT
-# =========================================================
+# =====================================================
+# SESSION STATE
+# =====================================================
 if "start" not in st.session_state:
     st.session_state.start = None
 
 if "end" not in st.session_state:
     st.session_state.end = None
 
-if "history" not in st.session_state:
-    st.session_state.history = []
+if "logs" not in st.session_state:
+    st.session_state.logs = []
 
-# =========================================================
-# FULL LOCATION DATABASE
-# =========================================================
+# =====================================================
+# FULL NETWORK (QATAR + GCC + METRO)
+# =====================================================
 locations = {
-    # ---------------- QATAR ----------------
+
+    # ---------------- QATAR MAIN ----------------
     "Doha": (25.2854, 51.5310),
     "Lusail": (25.4207, 51.4905),
     "Al Wakrah": (25.1659, 51.5970),
     "Al Khor": (25.6804, 51.4966),
-    "Mesaieed": (24.9923, 51.5519),
-    "Ras Laffan": (25.8904, 51.5489),
     "Hamad Airport": (25.2731, 51.6081),
+    "Mesaieed": (24.9923, 51.5519),
 
     # ---------------- DOHA METRO RED ----------------
     "Msheireb": (25.2855, 51.5330),
@@ -48,8 +44,8 @@ locations = {
     "Katara": (25.3548, 51.5247),
     "Qatar University": (25.3743, 51.4876),
     "Legtaifiya": (25.3610, 51.4970),
-    "Al Wakra Metro": (25.1659, 51.5970),
     "Free Zone": (25.2340, 51.5600),
+    "Ras Bu Fontas": (25.2050, 51.5750),
 
     # ---------------- GREEN LINE ----------------
     "Education City": (25.3139, 51.4382),
@@ -74,9 +70,9 @@ locations = {
     "Mecca": (21.3891, 39.8579),
 }
 
-# =========================================================
-# DISTANCE FUNCTION (REAL EARTH MATH)
-# =========================================================
+# =====================================================
+# DISTANCE ENGINE (REAL EARTH MATH)
+# =====================================================
 def haversine(a, b):
     R = 6371
     lat1, lon1 = a
@@ -90,157 +86,135 @@ def haversine(a, b):
 
     return R * c
 
-# =========================================================
+# =====================================================
 # AI ENGINE (REAL SCORING SYSTEM)
-# =========================================================
+# =====================================================
 def ai_engine(distance):
-    car = (distance / 90) * 1.0
-    metro = (distance / 60) * 0.8 + 0.3
-    air = (distance / 850) * 1.2
+    # lower score = better option
+    car_score = distance / 90
+    metro_score = (distance / 60) + 0.3
+    air_score = distance / 850
 
     scores = {
-        "Car": car,
-        "Metro": metro,
-        "Air": air
+        "🚗 Car": car_score,
+        "🚇 Metro": metro_score,
+        "✈️ Air": air_score
     }
 
     best = min(scores, key=scores.get)
     return best, scores
 
-# =========================================================
+# =====================================================
 # METRO COST SYSTEM
-# =========================================================
-def metro_cost(distance):
-    if distance < 10:
+# =====================================================
+def metro_cost(d):
+    if d < 10:
         return 2
-    elif distance < 25:
+    elif d < 25:
         return 4
     return 6
 
-# =========================================================
-# UI PANEL
-# =========================================================
-st.sidebar.header("🧭 Controls")
-
-start = st.sidebar.selectbox("Start Location", list(locations.keys()))
-end = st.sidebar.selectbox("End Location", list(locations.keys()))
-
-mode = st.sidebar.selectbox(
-    "Mode",
-    ["🤖 AI AUTO", "🚗 Car", "🚇 Metro", "✈️ Air"]
-)
-
-run = st.sidebar.button("🚀 RUN AI ROUTE")
-
-reset = st.sidebar.button("🔄 RESET")
-
-if reset:
+# =====================================================
+# RESET
+# =====================================================
+if st.button("🔄 Reset System"):
     st.session_state.start = None
     st.session_state.end = None
-    st.experimental_rerun()
+    st.rerun()
 
-# =========================================================
+# =====================================================
 # MAP BASE (ALWAYS STABLE)
-# =========================================================
+# =====================================================
 base_map = folium.Map(location=[25.3, 51.3], zoom_start=6)
 
-for name, coord in locations.items():
-    folium.CircleMarker(
-        location=coord,
-        radius=3,
-        tooltip=name
-    ).add_to(base_map)
+# only show markers AFTER route exists
+show_markers = st.session_state.start and st.session_state.end
 
-map_data = st_folium(base_map, height=600, width=1100)
+if show_markers:
+    for name, coord in locations.items():
+        folium.Marker(coord, tooltip=name).add_to(base_map)
 
-# =========================================================
-# CLICK LOGIC (OPTIONAL FUTURE UPGRADE READY)
-# =========================================================
+# =====================================================
+# CLICK SYSTEM
+# =====================================================
+map_data = st_folium(base_map, height=650, width=1100)
 clicked = map_data.get("last_clicked")
 
 if clicked:
+
     point = (clicked["lat"], clicked["lng"])
 
-# =========================================================
-# RUN ENGINE
-# =========================================================
-if run:
+    if st.session_state.start is None:
+        st.session_state.start = point
+        st.info("START selected")
 
-    a = locations[start]
-    b = locations[end]
+    elif st.session_state.end is None:
+        st.session_state.end = point
+        st.success("END selected")
+
+# =====================================================
+# ROUTE ENGINE (ONLY WHEN READY)
+# =====================================================
+if st.session_state.start and st.session_state.end:
+
+    a = st.session_state.start
+    b = st.session_state.end
 
     dist = haversine(a, b)
 
     best_mode, scores = ai_engine(dist)
 
-    final_mode = best_mode if mode == "🤖 AI AUTO" else mode
-
-    cost = metro_cost(dist) if final_mode == "Metro" else 0
-
-    # ROUTE MAP
     route_map = folium.Map(location=[(a[0]+b[0])/2, (a[1]+b[1])/2], zoom_start=6)
 
-    folium.Marker(a, tooltip="START").add_to(route_map)
-    folium.Marker(b, tooltip="END").add_to(route_map)
+    folium.PolyLine([a, b], color="purple", weight=6).add_to(route_map)
 
-    folium.PolyLine([a, b], color="purple", weight=5).add_to(route_map)
+    folium.Marker(a, popup="START").add_to(route_map)
+    folium.Marker(b, popup="END").add_to(route_map)
+
+    # distance label on map
+    mid = [(a[0]+b[0])/2, (a[1]+b[1])/2]
 
     folium.Marker(
-        [(a[0]+b[0])/2, (a[1]+b[1])/2],
+        mid,
         icon=folium.DivIcon(html=f"""
-        <div style="background:purple;color:white;padding:5px;border-radius:8px">
+        <div style="background:black;color:white;padding:6px;border-radius:6px">
         {dist:.2f} km
         </div>
         """)
     ).add_to(route_map)
 
-    st_folium(route_map, height=600, width=1100)
+    st_folium(route_map, height=650, width=1100)
 
-    # =====================================================
-    # AI OUTPUT PANEL
-    # =====================================================
-    st.subheader("🤖 AI ROUTE ENGINE OUTPUT")
+    # =================================================
+    # AI OUTPUT PANEL (ALWAYS VISIBLE)
+    # =================================================
+    st.subheader("🤖 AI ROUTE ENGINE")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("Distance (km)", f"{dist:.2f}")
+        st.metric("Distance", f"{dist:.2f} km")
 
     with col2:
-        st.metric("Mode", final_mode)
+        st.metric("Best Mode", best_mode)
 
     with col3:
-        st.metric("Cost (Metro)", f"{cost} QAR")
+        st.metric("Metro Cost", f"{metro_cost(dist)} QAR")
 
-    st.write("### 🧠 AI Decision Scores")
+    st.write("### AI Scores")
     st.json(scores)
 
-    # =====================================================
-    # HISTORY SYSTEM
-    # =====================================================
-    st.session_state.history.append({
+    # =================================================
+    # HISTORY
+    # =================================================
+    st.session_state.logs.append({
         "time": str(datetime.now()),
-        "start": start,
-        "end": end,
         "distance": dist,
-        "mode": final_mode
+        "mode": best_mode
     })
 
-    st.write("### 📜 Route History")
-
-    for h in st.session_state.history[-5:]:
-        st.write(h)
-
-    # =====================================================
-    # WARNINGS
-    # =====================================================
-    if dist > 500:
-        st.warning("Long distance → Air recommended ✈️")
+    st.write("### Recent Routes")
+    st.write(st.session_state.logs[-5:])
 
 else:
-    st.info("Select route and press RUN AI ROUTE")
-
-# =========================================================
-# FOOTER
-# =========================================================
-st.caption("GCC AI Logistics PRO MAX SYSTEM 🚀")
+    st.info("Click START and END points to generate route")
