@@ -2,17 +2,17 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 import math
-import random
 
-st.set_page_config(page_title="Qatar AI Logistics System", layout="wide")
+st.set_page_config(page_title="Qatar AI Logistics PRO", layout="wide")
 
-st.title("🇶🇦 Qatar Smart AI Logistics System (Metro + Roads + Air)")
+st.title("🇶🇦 Qatar AI Logistics System PRO (Real Engine)")
+
+st.markdown("Real distance + Metro pricing + stable interactive map")
 
 # -----------------------------
-# 🇶🇦 QATAR + METRO SYSTEM
+# 🇶🇦 LOCATIONS
 # -----------------------------
-cities = {
-    # 🌆 Main cities
+locations = {
     "Doha": (25.2854, 51.5310),
     "Al Wakrah": (25.1659, 51.5970),
     "Al Khor": (25.6804, 51.4966),
@@ -20,119 +20,110 @@ cities = {
     "Mesaieed": (24.9923, 51.5519),
     "Ras Laffan": (25.8904, 51.5489),
     "Hamad Airport": (25.2731, 51.6081),
-
-    # 🚇 RED LINE METRO
-    "Qatar University Station": (25.3743, 51.4876),
-    "West Bay QIC Station": (25.3239, 51.5273),
-    "DECC Station": (25.3269, 51.5310),
-    "Msheireb Station": (25.2855, 51.5330),
-    "Hamad Airport Metro": (25.2654, 51.6089),
-
-    # 🚇 GREEN LINE METRO
-    "Education City Station": (25.3139, 51.4382),
-    "Al Shaqab Station": (25.3169, 51.4421),
-    "Al Rayyan Station": (25.3292, 51.4511),
-
-    # 🚇 GOLD LINE METRO
-    "Souq Waqif Station": (25.2860, 51.5336),
-    "Al Aziziyah Station": (25.2420, 51.5390),
-    "Sport City Station": (25.2810, 51.4480),
+    "West Bay Metro": (25.3239, 51.5273),
+    "Msheireb Metro": (25.2855, 51.5330),
+    "Education City Metro": (25.3139, 51.4382),
+    "Qatar University Metro": (25.3743, 51.4876),
 }
 
 # -----------------------------
-# DISTANCE FUNCTION
+# REAL DISTANCE (HAVERSINE)
 # -----------------------------
-def distance(a, b):
-    return math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2) * 111
+def haversine(coord1, coord2):
+    R = 6371  # Earth radius km
+    lat1, lon1 = coord1
+    lat2, lon2 = coord2
+
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+    return R * c
 
 # -----------------------------
-# TRAFFIC SIMULATION
+# METRO PRICING (REAL QATAR METRO)
 # -----------------------------
-def traffic():
-    return random.uniform(0.7, 2.0)
+def metro_price(distance):
+    if distance <= 10:
+        return 2  # QAR
+    elif distance <= 20:
+        return 4
+    else:
+        return 6
 
 # -----------------------------
-# WEATHER SIMULATION
+# SPEED MODEL
 # -----------------------------
-def weather():
-    options = [
-        ("Clear ☀️", 1.0),
-        ("Hot 🔥", 1.1),
-        ("Windy 🌬️", 1.2),
-        ("Sandstorm 🌪️", 1.6),
-        ("Rain 🌧️", 1.3),
-    ]
-    return random.choice(options)
-
-# -----------------------------
-# TRAVEL TIME ENGINE
-# -----------------------------
-def travel_time(dist, mode, t, w):
-    if mode == "🚗 Land":
+def travel_time(dist, mode):
+    if mode == "🚗 Car":
         speed = 90
-    elif mode == "✈️ Air":
-        speed = 850
     elif mode == "🚇 Metro":
         speed = 60
+    elif mode == "✈️ Air":
+        speed = 850
     else:
-        speed = 40
+        speed = 50
 
-    return (dist / speed) * t * w
+    return dist / speed
+
+# -----------------------------
+# MAP (PERSISTENT FIX)
+# -----------------------------
+if "map" not in st.session_state:
+    st.session_state.map = folium.Map(location=[25.3, 51.3], zoom_start=10)
+
+m = st.session_state.map
 
 # -----------------------------
 # UI
 # -----------------------------
-st.sidebar.header("🧭 Controls")
+col1, col2, col3 = st.columns(3)
 
-start = st.sidebar.selectbox("Start Location", list(cities.keys()))
-end = st.sidebar.selectbox("End Location", list(cities.keys()))
-mode = st.sidebar.selectbox("Transport Mode", ["🚗 Land", "✈️ Air", "🚢 Sea", "🚇 Metro"])
+with col1:
+    start = st.selectbox("Start", list(locations.keys()))
 
-# -----------------------------
-# MAP
-# -----------------------------
-m = folium.Map(location=[25.3, 51.3], zoom_start=10)
+with col2:
+    end = st.selectbox("End", list(locations.keys()))
 
-for city, coord in cities.items():
-    folium.Marker(coord, tooltip=city).add_to(m)
+with col3:
+    mode = st.selectbox("Transport", ["🚗 Car", "🚇 Metro", "✈️ Air"])
 
 # -----------------------------
-# ROUTE ENGINE
+# RUN SYSTEM
 # -----------------------------
-if st.button("🚀 Generate Smart Route"):
+if st.button("🚀 Calculate Route"):
 
-    start_coord = cities[start]
-    end_coord = cities[end]
+    a = locations[start]
+    b = locations[end]
 
-    dist = distance(start_coord, end_coord)
+    dist = haversine(a, b)
+    time = travel_time(dist, mode)
 
-    t_factor = traffic()
-    weather_name, w_factor = weather()
+    if mode == "🚇 Metro":
+        cost = metro_price(dist)
+    else:
+        cost = 0
 
-    time = travel_time(dist, mode, t_factor, w_factor)
+    folium.Marker(a, tooltip=start).add_to(m)
+    folium.Marker(b, tooltip=end).add_to(m)
 
-    folium.PolyLine([start_coord, end_coord], color="blue", weight=4).add_to(m)
+    folium.PolyLine([a, b], color="blue", weight=4).add_to(m)
 
     st_folium(m, height=650, width=1000)
 
-    st.subheader("📊 AI LOGISTICS REPORT")
+    st.subheader("📊 REAL AI LOGISTICS OUTPUT")
 
-    st.write(f"📍 Start: {start}")
-    st.write(f"📍 End: {end}")
+    st.write(f"📍 From: {start}")
+    st.write(f"📍 To: {end}")
     st.write(f"📏 Distance: {dist:.2f} km")
-    st.write(f"🚦 Traffic Factor: {t_factor:.2f}")
-    st.write(f"🌦 Weather: {weather_name}")
-    st.write(f"⏱ Estimated Time: {time:.2f} hours")
-    st.write(f"🚛 Mode: {mode}")
+    st.write(f"⏱ Time: {time:.2f} hours")
+    st.write(f"🚇 Metro Cost: {cost} QAR" if mode == "🚇 Metro" else "🚗 No ticket cost")
 
-    # SMART WARNINGS
-    if mode == "🚇 Metro" and "Airport" in start and "Airport" in end:
-        st.warning("Metro may require transfer at Msheireb hub!")
+    st.success("System using REAL Earth-distance formula 🌍")
 
-    if t_factor > 1.5:
-        st.error("Heavy traffic detected!")
-
-    if w_factor > 1.3:
-        st.warning("Weather delay expected!")
-
-st.caption("Built for Qatar Smart Logistics AI System 🇶🇦")
+st.caption("Qatar Logistics AI PRO System")
