@@ -1,22 +1,98 @@
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+import math
 
-st.set_page_config(page_title="Simple Map App", layout="wide")
+# =========================
+# PAGE SETUP
+# =========================
+st.set_page_config(page_title="AI Logistics Map", layout="wide")
+st.title("🌍 AI Logistics Map (Working Version)")
+st.write("Click once = START, click again = END")
 
-st.title("🗺️ Working Map Test")
+# =========================
+# SESSION STATE
+# =========================
+if "start" not in st.session_state:
+    st.session_state.start = None
 
-# Qatar center
-m = folium.Map(location=[25.3, 51.5], zoom_start=7, tiles="CartoDB positron")
+if "end" not in st.session_state:
+    st.session_state.end = None
 
-# show map + capture click
-map_data = st_folium(m, height=600, width=1000)
+# =========================
+# DISTANCE FUNCTION
+# =========================
+def distance_km(a, b):
+    R = 6371
+    lat1, lon1 = a
+    lat2, lon2 = b
 
-# handle click
-if map_data and map_data.get("last_clicked"):
-    lat = map_data["last_clicked"]["lat"]
-    lon = map_data["last_clicked"]["lng"]
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
 
-    st.success(f"Clicked: {lat:.5f}, {lon:.5f}")
+    x = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+    c = 2 * math.atan2(math.sqrt(x), math.sqrt(1-x))
 
-    folium.Marker([lat, lon], tooltip="You clicked here").add_to(m)
+    return R * c
+
+# =========================
+# CREATE MAP (EVERY RUN)
+# =========================
+m = folium.Map(
+    location=[25.3, 51.5],
+    zoom_start=7,
+    tiles="CartoDB positron"
+)
+
+# =========================
+# SHOW STORED MARKERS
+# =========================
+if st.session_state.start:
+    folium.Marker(
+        st.session_state.start,
+        tooltip="START",
+        icon=folium.Icon(color="green")
+    ).add_to(m)
+
+if st.session_state.end:
+    folium.Marker(
+        st.session_state.end,
+        tooltip="END",
+        icon=folium.Icon(color="red")
+    ).add_to(m)
+
+# =========================
+# DRAW ROUTE IF READY
+# =========================
+if st.session_state.start and st.session_state.end:
+    folium.PolyLine(
+        [st.session_state.start, st.session_state.end],
+        color="blue",
+        weight=5
+    ).add_to(m)
+
+    dist = distance_km(st.session_state.start, st.session_state.end)
+
+    st.success(f"Distance: {dist:.2f} km")
+
+# =========================
+# RENDER MAP + GET CLICK
+# =========================
+map_data = st_folium(m, height=650, width=1000)
+
+clicked = map_data.get("last_clicked")
+
+# =========================
+# CLICK LOGIC
+# =========================
+if clicked:
+    lat = clicked["lat"]
+    lon = clicked["lng"]
+
+    if st.session_state.start is None:
+        st.session_state.start = (lat, lon)
+        st.rerun()
+
+    elif st.session_state.end is None:
+        st.session_state.end = (lat, lon)
+        st.rerun()
